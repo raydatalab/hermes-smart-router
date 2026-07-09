@@ -125,14 +125,12 @@ If the recommended tier differs from the current model:
 
 ```bash
 # Install dependencies (one-time setup)
-pip install semantic-router[ollama]
-pip install git+https://github.com/raydatalab/hermes-smart-router.git
-ollama pull nomic-embed-text
+bash scripts/install.sh
 
 # Test routing
-python -m smart_router route "What is the capital of France?"
-python -m smart_router chat
-python -m pytest tests/
+~/.hermes/hermes-agent/venv/bin/python3 -m smart_router route "What is the capital of France?"
+~/.hermes/hermes-agent/venv/bin/python3 -m smart_router chat
+~/.hermes/hermes-agent/venv/bin/python3 -m pytest tests/
 ```
 
 ## Notes
