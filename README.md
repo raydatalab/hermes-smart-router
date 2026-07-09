@@ -8,6 +8,8 @@
 
 Intelligent model tier routing for Hermes Agent — helps the agent pick the right model for each query.
 
+> **Note:** Hermes does not support in-session model switching via skills. The router classifies queries and recommends a tier; the user must run the suggested `/model` command manually.
+
 ## The Problem
 
 A user may have access to multiple model tiers: a local model (fast, free, offline), a low-cost cloud model, and a more capable frontier model. Without routing, every query goes to the same target, incurring unnecessary cost on simple tasks and under-serving complex ones.
