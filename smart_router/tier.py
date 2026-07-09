@@ -235,9 +235,9 @@ def _apply_auto_detection() -> None:
 def _load_local_config() -> None:
     """Load config.local.yaml if it exists.
 
-    This is the mechanism that lets the author keep their personal config
-    (deepseek, qwen3:14b, WSL2) on disk without it ever reaching GitHub.
-    The file is .gitignored — strangers who clone see only the generic defaults.
+    This is the mechanism that lets contributors keep their personal config
+    on disk without it ever reaching GitHub. The file is .gitignored —
+    strangers who clone see only the generic defaults.
     """
     local_path = Path(__file__).resolve().parent.parent / "config.local.yaml"
     if not local_path.exists():

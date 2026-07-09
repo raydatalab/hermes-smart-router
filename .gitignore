@@ -26,6 +26,11 @@ CLAUDE.md
 config.local.yaml
 fix-instructions.md
 
+# Temp task specs / analysis files (for Claude Code handoff)
+tmp-*.md
+task-*.md
+analysis-*.md
+
 # Skill artifacts
 *.swp
 *.swo
