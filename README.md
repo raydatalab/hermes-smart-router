@@ -22,7 +22,7 @@ A Hermes skill that classifies each query and routes it to the appropriate model
 "Design a multi-region database"      → pro (highest capability)
 ```
 
-Routing uses [semantic-router](https://github.com/aurelio-labs/semantic-router) with local Ollama embeddings — zero API calls, zero cost, zero network dependency.
+Routing uses [semantic-router](https://github.com/aurelio-labs/semantic-router) with local Ollama embeddings — zero API calls, zero cost. After the one-time embedding model pull, classification runs entirely offline.
 
 ## Tiers
 
@@ -58,7 +58,7 @@ If the short form is unavailable, use the repo path:
 hermes skills install raydatalab/hermes-smart-router/hermes-smart-router
 ```
 
-On first use the agent bootstraps dependencies automatically — `pip install` + embedding model pull. This takes ~30 seconds once per environment. After that the skill is ready immediately.
+On first use, run the install script to set up dependencies — `pip install` + embedding model pull. This takes ~30 seconds once per environment.
 
 ### Manual
 

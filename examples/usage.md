@@ -11,20 +11,20 @@ python -m smart_router route "What is the capital of France?"
 # Output:
 #   Query:    What is the capital of France?
 #   Tier:     local
-#   Model:    custom/qwen3:14b
+#   Model:    custom/llama3.2:3b
 #   Summary:  Simple lookups, translations, greetings, basic Q&A
 
 # Route a moderate question → flash (cheap API)
 python -m smart_router route "Explain how DNS works"
 # Output:
 #   Tier:     flash
-#   Model:    deepseek/deepseek-v4-flash
+#   Model:    openrouter/google/gemini-flash-1.5
 
 # Route a complex question → pro (best quality)
 python -m smart_router route "Design a microservice architecture for e-commerce"
 # Output:
 #   Tier:     pro
-#   Model:    deepseek/deepseek-v4-pro
+#   Model:    anthropic/claude-sonnet-4
 
 # JSON output for scripting
 python -m smart_router route --json "What is Python?"
@@ -74,7 +74,7 @@ tier = router.classify("What is the capital of France?")
 # → "local"
 
 model = router.get_model("Write a Python script to parse JSON")
-# → {"provider": "deepseek", "model": "deepseek-v4-flash"}
+# → {"provider": "openrouter", "model": "google/gemini-flash-1.5"}
 
 # Full lifecycle: classify + manage Ollama
 ollama = OllamaManager()

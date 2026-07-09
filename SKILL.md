@@ -25,7 +25,7 @@ Intelligent model tier routing for Hermes Agent — picks the right model for ev
 ## How It Works
 
 1. User sends a query
-2. Smart Router classifies it using local Ollama embeddings (no network, no API keys)
+2. Smart Router classifies it using local Ollama embeddings (no API calls, no API keys)
 3. Routes to the appropriate tier — auto-starts Ollama for local, manages idle timeout
 4. Agent responds using the selected model
 
@@ -33,7 +33,9 @@ Intelligent model tier routing for Hermes Agent — picks the right model for ev
 
 - Hermes Agent v0.17+
 - Ollama installed (the skill auto-detects models from `ollama list`; embedding model is pulled on first use)
-- Python dependencies (`semantic-router[ollama]`) are auto-installed on first load
+- Python packages (install once, see testing section below):
+  - `semantic-router[ollama]`
+  - `smart_router` (from this repo)
 - For flash/pro tiers: configure providers via `hermes model`
 
 ## Configuration
@@ -63,25 +65,10 @@ smart_router:
 
 ## Agent Instructions
 
+**Note:** Hermes does not auto-install pip packages when a skill loads.
+Dependencies must be installed once per environment (see Testing section below).
+
 When this skill is loaded:
-
-### 0. First-Run Setup (runs once per environment)
-
-Before using the skill, verify the smart_router package is importable.
-If the following import fails, execute the setup steps below exactly once:
-
-```python
-from smart_router.router import ModelRouter
-```
-
-Setup steps (run in order, only if the import above fails):
-
-1. `pip install semantic-router[ollama]`
-2. `pip install git+https://github.com/raydatalab/hermes-smart-router.git`
-3. `ollama pull nomic-embed-text`
-
-After these steps complete, the import will succeed and the skill is ready.
-This is a one-time bootstrap — subsequent loads skip directly to step 1.
 
 ### 1. Classify Every Query
 
@@ -137,7 +124,12 @@ If the recommended tier differs from the current model:
 ## Testing
 
 ```bash
+# Install dependencies (one-time setup)
 pip install semantic-router[ollama]
+pip install git+https://github.com/raydatalab/hermes-smart-router.git
+ollama pull nomic-embed-text
+
+# Test routing
 python -m smart_router route "What is the capital of France?"
 python -m smart_router chat
 python -m pytest tests/
