@@ -31,13 +31,14 @@ Intelligent model tier routing for Hermes Agent — picks the right model for ev
 
 ## Prerequisites
 
-- `semantic-router[ollama]` (`pip install semantic-router[ollama]`)
-- Ollama with a model pulled (any model — skill auto-detects from `ollama list`)
-- For flash/pro tiers: API keys in `~/.hermes/.env`
+- Hermes Agent v0.17+
+- Ollama installed (the skill auto-detects models from `ollama list`; embedding model is pulled on first use)
+- Python dependencies (`semantic-router[ollama]`) are auto-installed on first load
+- For flash/pro tiers: configure providers via `hermes model`
 
 ## Configuration
 
-Add to `~/.hermes/config.yaml`:
+Configure via `hermes config set` for each tier or add this block under `smart_router:` in config.yaml:
 
 ```yaml
 smart_router:
@@ -63,6 +64,24 @@ smart_router:
 ## Agent Instructions
 
 When this skill is loaded:
+
+### 0. First-Run Setup (runs once per environment)
+
+Before using the skill, verify the smart_router package is importable.
+If the following import fails, execute the setup steps below exactly once:
+
+```python
+from smart_router.router import ModelRouter
+```
+
+Setup steps (run in order, only if the import above fails):
+
+1. `pip install semantic-router[ollama]`
+2. `pip install git+https://github.com/raydatalab/hermes-smart-router.git`
+3. `ollama pull nomic-embed-text`
+
+After these steps complete, the import will succeed and the skill is ready.
+This is a one-time bootstrap — subsequent loads skip directly to step 1.
 
 ### 1. Classify Every Query
 

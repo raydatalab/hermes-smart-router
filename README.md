@@ -44,12 +44,21 @@ One API token, different models for different complexity. There is no requiremen
 
 ## Installation
 
-**Prerequisites:** Hermes Agent v0.17+, Python 3.10+, Ollama with at least one model pulled.
+**Prerequisites:** Hermes Agent v0.17+, Python 3.10+, Ollama installed.
+
+### Via Hermes (recommended)
+
+```bash
+hermes skills install raydatalab/hermes-smart-router/smart-router
+```
+
+On first use the agent bootstraps dependencies automatically — `pip install` + embedding model pull. This takes ~30 seconds once per environment. After that the skill is ready immediately.
+
+### Manual
 
 ```bash
 git clone https://github.com/raydatalab/hermes-smart-router.git
-cd hermes-smart-router
-pip install -r requirements.txt
+cd hermes-smart-router && bash scripts/install.sh
 hermes skills install SKILL.md
 ```
 
@@ -57,7 +66,7 @@ On first use, Smart Router detects available Ollama models from `ollama list` an
 
 ## Configuration
 
-Add a `smart_router` section to `~/.hermes/config.yaml`. A typical setup using OpenRouter (one API key, both flash and pro):
+Configure via `hermes config set` for each tier, or add a `smart_router:` block in config.yaml with the following structure:
 
 ```yaml
 smart_router:

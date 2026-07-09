@@ -114,7 +114,7 @@ set_tiers({
 reset_tiers()
 ```
 
-Or configure permanently via `~/.hermes/config.yaml`:
+Or configure permanently via config.yaml (under `smart_router:`):
 
 ```yaml
 smart_router:
@@ -139,7 +139,7 @@ smart_router:
 
 ## Environment Variables
 
-For flash/pro tiers, set API keys in `~/.hermes/.env` or your shell:
+For flash/pro tiers, set API keys via `hermes model` or your shell environment:
 
 ```bash
 export DEEPSEEK_API_KEY="sk-..."
