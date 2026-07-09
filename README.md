@@ -1,40 +1,40 @@
 # Hermes Smart Router
 
-Intelligent model tier routing for Hermes Agent — automatically picks the right model for every query.
+Intelligent model tier routing for Hermes Agent — automatically selects the appropriate model for each query.
 
 ## The Problem
 
-You have access to multiple model tiers — a fast local model, an affordable cloud model, and a powerful frontier model. But every query goes to the same place, wasting money on simple tasks and under-serving complex ones.
+A user may have access to multiple model tiers: a local model (fast, free, offline), a low-cost cloud model, and a more capable frontier model. Without routing, every query goes to the same target, incurring unnecessary cost on simple tasks and under-serving complex ones.
 
 ## The Solution
 
-A Hermes skill that routes queries to the optimal tier using semantic classification that runs entirely on your machine:
+A Hermes skill that classifies each query and routes it to the appropriate model tier. Classification runs entirely on the local machine:
 
 ```
 "Translate hello to German"           → local (Ollama, free)
-"Explain how DNS works"               → flash (affordable)
-"Design a multi-region database"      → pro (best quality)
+"Explain how DNS works"               → flash (low-cost API)
+"Design a multi-region database"      → pro (highest capability)
 ```
 
-Routing uses [semantic-router](https://github.com/aurelio-labs/semantic-router) with local Ollama embeddings — zero API calls, zero cost, zero network.
+Routing uses [semantic-router](https://github.com/aurelio-labs/semantic-router) with local Ollama embeddings — zero API calls, zero cost, zero network dependency.
 
 ## Tiers
 
 | Tier | Purpose | Provider examples |
 |------|---------|-------------------|
 | **local** | Free, offline, private — simple lookups, translations, formatting | Ollama (llama3.2, qwen3, mistral), any local model |
-| **flash** | Fast, affordable — everyday coding, explanations, general Q&A | DeepSeek Flash, Gemini Flash, GPT-4o-mini, Claude Haiku |
-| **pro** | Best quality — complex architecture, debugging, multi-step reasoning | DeepSeek Pro, Gemini Pro, GPT-4o, Claude Sonnet |
+| **flash** | Fast, low-cost — everyday coding, explanations, general Q&A | DeepSeek Flash, Gemini Flash, GPT-4o-mini, Claude Haiku |
+| **pro** | Highest capability — complex architecture, debugging, multi-step reasoning | DeepSeek Pro, Gemini Pro, GPT-4o, Claude Sonnet |
 
-One API token, different models for different complexity. You don't need multiple providers — even a single provider like OpenRouter or DeepSeek gives you both flash and pro tiers.
+One API token, different models for different complexity. There is no requirement for multiple providers — a single provider such as OpenRouter or DeepSeek provides both flash and pro tiers.
 
 ## Features
 
 - 3-tier routing: local / flash / pro, auto-selected per query
 - 100% local classification via Ollama embeddings — no cloud dependencies
 - Ollama lifecycle: auto-start when needed, auto-kill when idle
-- No GPU needed — runs on CPU
-- Your queries never leave your machine for routing decisions
+- No GPU required — runs on CPU
+- Queries never leave the local machine during routing decisions
 
 ## Installation
 
@@ -47,11 +47,11 @@ pip install -r requirements.txt
 hermes skills install SKILL.md
 ```
 
-On first use, Smart Router detects your Ollama models from `ollama list` and adapts. If no cloud providers are configured, it stays on local tier — no errors, no missing-config warnings.
+On first use, Smart Router detects available Ollama models from `ollama list` and adapts. If no cloud providers are configured, the skill operates in local-only mode — no errors, no missing-config warnings.
 
 ## Configuration
 
-Add a `smart_router` section to `~/.hermes/config.yaml`. Here's a typical setup using OpenRouter (one API key, both flash and pro):
+Add a `smart_router` section to `~/.hermes/config.yaml`. A typical setup using OpenRouter (one API key, both flash and pro):
 
 ```yaml
 smart_router:
@@ -74,7 +74,7 @@ smart_router:
     idle_timeout: 300
 ```
 
-Set up providers with `hermes model` — no need to edit `.env` files manually.
+Providers are configured via `hermes model` — no manual `.env` editing is required.
 
 ## Provider Support
 
@@ -84,20 +84,20 @@ Set up providers with `hermes model` — no need to edit `.env` files manually.
 | flash | — | ✓ | ✓ | ✓ | ✓ | ✓ |
 | pro | — | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-Local tier auto-detects whatever Ollama model you have pulled. Flash and pro work with any provider Hermes supports — just configure the `provider` and `model` in your tier config.
+The local tier auto-detects whichever Ollama model is available. Flash and pro tiers work with any provider Hermes supports — the `provider` and `model` fields in the tier config determine the target.
 
 ## Usage
 
 Once loaded, the skill evaluates each query before responding:
 
 ```
-You: "What's the capital of France?"
+User: "What's the capital of France?"
 → local tier (Ollama)
-Hermes: The capital of France is Paris.
+Agent: The capital of France is Paris.
 
-You: "Design a fault-tolerant payment system"
+User: "Design a fault-tolerant payment system"
 → pro tier (Claude Sonnet)
-Hermes: [detailed architecture answer]
+Agent: [detailed architecture answer]
 ```
 
 ### Python API
