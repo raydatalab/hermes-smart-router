@@ -49,7 +49,13 @@ One API token, different models for different complexity. There is no requiremen
 ### Via Hermes (recommended)
 
 ```bash
-hermes skills install raydatalab/hermes-smart-router/smart-router
+hermes skills install hermes-smart-router
+```
+
+If the short form is unavailable, use the repo path:
+
+```bash
+hermes skills install raydatalab/hermes-smart-router/hermes-smart-router
 ```
 
 On first use the agent bootstraps dependencies automatically — `pip install` + embedding model pull. This takes ~30 seconds once per environment. After that the skill is ready immediately.
