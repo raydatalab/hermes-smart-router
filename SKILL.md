@@ -14,7 +14,7 @@ metadata:
 
 # Smart Router
 
-Intelligent model tier routing for Hermes Agent — picks the right model for every query based on semantic complexity.
+Intelligent model tier routing for Hermes Agent — recommends the right model tier based on query complexity.
 
 | Tier | Typical Model | Use When |
 |------|--------------|----------|
@@ -68,22 +68,51 @@ smart_router:
 **Note:** Hermes does not auto-install pip packages when a skill loads.
 Dependencies must be installed once per environment (see Testing section below).
 
-Before responding to each user message, classify it and switch to the best model:
+### When to Classify
+
+**Do NOT classify every message.** The router is a tool you invoke when the
+current model might not be the right fit. `needs_switch` fires in both
+directions — upgrade when the model is too weak, downgrade when it's overkill.
+
+| Situation | Action |
+|-----------|--------|
+| Current model is **local** and query involves reasoning, architecture, or multi-step code | Classify — likely needs flash or pro (upgrade) |
+| Current model is **flash** and query is deep architecture, complex debugging, or math proofs | Classify — likely needs pro (upgrade) |
+| Current model is **pro** and query is simple (greeting, translation, basic fact) | Classify — likely needs flash or local (downgrade) |
+| Current model is **flash** and query is very simple (greeting, translation, basic fact) | Classify — likely needs local (downgrade) |
+| Query complexity obviously matches current tier | Skip — no mismatch expected |
+| User explicitly asks about tier or model choice | Classify — user wants the info |
+| You're unsure | Classify — cheap check |
+
+The rule: **classify when the current tier feels wrong for the query**, either
+too weak or too expensive. Skip when it's obviously right.
+
+### How to Classify
+
+Use the module singleton — init cost is paid once per session:
 
 ```python
-from smart_router.router import ModelRouter
-from smart_router.ollama import OllamaManager
+from smart_router.router import get_router
 
-ollama = OllamaManager()
-router = ModelRouter(ollama_manager=ollama)
-
-decision = router.resolve(user_message)
-# → {"tier": "local", "model": {"provider": "...", "model": "..."}, "ollama_ready": true}
+router = get_router()
+decision = router.resolve(user_message, current_tier="flash")  # use your active tier
+# → {"tier": "pro", "model": {...}, "ollama_ready": null, "needs_switch": true}
 ```
 
-- **Switch to the recommended model** using `/model <provider> <model>` with the values from `decision["model"]`. For the local tier, `resolve()` already starts Ollama — check `decision["ollama_ready"]` first. When routing away from local, the idle timeout begins automatically.
-- **If the switch doesn't take effect**, you must still prepend a short hint at the top of your reply: *"💡 This query would suit the {tier} tier ({model})."* Then answer with whichever model is active — the hint alone makes the skill useful.
-- **When classification has low confidence or errors out**, the router falls back to `"flash"`. Treat this the same as any flash-tier response. If `ollama_ready` is `false`, skip the local tier.
+`current_tier` must be one of `"local"`, `"flash"`, or `"pro"` — match whatever `/tier` reports.
+
+### How to Act on the Result
+
+You **cannot execute `/model` yourself** — it is a user-side slash command.
+Instead, prepend a one-line recommendation to your reply:
+
+- **`needs_switch` is `false`** → say nothing, just answer.
+- **`needs_switch` is `true` and tier is an upgrade** (local→flash, local→pro, flash→pro):
+  *"💡 Switch to {tier}: `/model {provider} {model}`"*
+- **`needs_switch` is `true` and tier is a downgrade** (pro→flash, flash→local, pro→local):
+  *"💡 Downgrade to {tier}: `/model {provider} {model}`"*
+- For local tier: check `decision["ollama_ready"]` first — if `false`, mention that Ollama isn't ready.
+- **Classification errors out or times out** → skip, answer with current model. Do not retry.
 
 ### Ollama Lifecycle
 

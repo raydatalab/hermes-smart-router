@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Hermes-v0.17+-purple.svg" alt="Hermes">
 </p>
 
-Intelligent model tier routing for Hermes Agent — automatically selects the appropriate model for each query.
+Intelligent model tier routing for Hermes Agent — helps the agent pick the right model for each query.
 
 ## The Problem
 
@@ -14,7 +14,7 @@ A user may have access to multiple model tiers: a local model (fast, free, offli
 
 ## The Solution
 
-A Hermes skill that classifies each query and routes it to the appropriate model tier. Classification runs entirely on the local machine:
+A Hermes skill that classifies queries on demand and recommends the appropriate model tier. Classification runs entirely on the local machine:
 
 ```
 "Translate hello to German"           → local (Ollama, free)
@@ -116,27 +116,28 @@ The local tier auto-detects whichever Ollama model is available. Flash and pro t
 
 ## Usage
 
-Once loaded, the skill evaluates each query before responding:
+Once loaded, the skill provides a classification tool the agent invokes when the current model feels wrong for the query — either too weak or too expensive. The router fires `needs_switch` in both directions, and the agent recommends a `/model` command the user can execute:
 
 ```
-User: "What's the capital of France?"
-→ local tier (Ollama)
-Agent: The capital of France is Paris.
-
-User: "Design a fault-tolerant payment system"
-→ pro tier (Claude Sonnet)
+Agent (flash): receives "Design a fault-tolerant payment system"
+→ classifies → needs_switch=true → recommends pro upgrade
+💡 Switch to pro: /model deepseek deepseek-v4-pro
 Agent: [detailed architecture answer]
+
+Agent (pro): receives "Translate hello to German"
+→ classifies → needs_switch=true → recommends flash downgrade
+💡 Downgrade to flash: /model deepseek deepseek-v4-flash
+Agent: Hallo
 ```
 
 ### Python API
 
 ```python
-from smart_router.router import ModelRouter
-from smart_router.ollama import OllamaManager
+from smart_router.router import get_router
 
-router = ModelRouter(ollama_manager=OllamaManager())
-decision = router.resolve("Explain how DNS works")
-# → {"tier": "flash", "model": {...}, "ollama_ready": null}
+router = get_router()
+decision = router.resolve("Explain how DNS works", current_tier="flash")
+# → {"tier": "flash", "model": {...}, "ollama_ready": null, "needs_switch": false}
 ```
 
 ### CLI

@@ -485,5 +485,196 @@ class TestResolve:
         assert "tier" in result
         assert "model" in result
         assert "ollama_ready" in result
+        assert "needs_switch" in result
         assert "provider" in result["model"]
         assert "model" in result["model"]
+
+
+class TestResolveWithCurrentTier:
+    """Test the resolve() method with current_tier parameter for needs_switch."""
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self):
+        from smart_router.tier import reset_tiers
+        reset_tiers()
+        yield
+        reset_tiers()
+
+    def _make_router(self, mock_router, ollama_mgr=None):
+        router = ModelRouter(ollama_manager=ollama_mgr)
+        router._encoder = MagicMock()
+        router._router = mock_router
+        router._initialized = True
+        return router
+
+    # --- needs_switch = True cases (recommended > current) ---
+
+    def test_needs_switch_local_to_flash(self):
+        """local → flash: needs_switch should be True (upgrade)."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = self._make_router(mock)
+
+        result = router.resolve("explain DNS", current_tier="local")
+        assert result["tier"] == "flash"
+        assert result["needs_switch"] is True
+
+    def test_needs_switch_local_to_pro(self):
+        """local → pro: needs_switch should be True (big upgrade)."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.9)
+        router = self._make_router(mock)
+
+        result = router.resolve("design microservices", current_tier="local")
+        assert result["tier"] == "pro"
+        assert result["needs_switch"] is True
+
+    def test_needs_switch_flash_to_pro(self):
+        """flash → pro: needs_switch should be True (upgrade)."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+
+        result = router.resolve("architect a distributed database", current_tier="flash")
+        assert result["tier"] == "pro"
+        assert result["needs_switch"] is True
+
+    # --- needs_switch = False cases (same tier or downgrade) ---
+
+    def test_needs_switch_same_tier(self):
+        """flash → flash: needs_switch should be False."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = self._make_router(mock)
+
+        result = router.resolve("explain DNS", current_tier="flash")
+        assert result["tier"] == "flash"
+        assert result["needs_switch"] is False
+
+    def test_needs_switch_downgrade(self):
+        """pro → local: needs_switch should be True (downgrade saves cost)."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("local", 0.9)
+        router = self._make_router(mock)
+
+        result = router.resolve("what is 2+2", current_tier="pro")
+        assert result["tier"] == "local"
+        assert result["needs_switch"] is True
+
+    def test_needs_switch_pro_to_flash(self):
+        """pro → flash: needs_switch should be True (downgrade saves cost)."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = self._make_router(mock)
+
+        result = router.resolve("explain DNS", current_tier="pro")
+        assert result["tier"] == "flash"
+        assert result["needs_switch"] is True
+
+    def test_needs_switch_pro_same(self):
+        """pro → pro: needs_switch should be False."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+
+        result = router.resolve("complex architecture", current_tier="pro")
+        assert result["tier"] == "pro"
+        assert result["needs_switch"] is False
+
+    # --- current_tier not provided ---
+
+    def test_no_current_tier_defaults_to_false(self):
+        """When current_tier is omitted, needs_switch is always False."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+
+        result = router.resolve("complex architecture")
+        assert result["needs_switch"] is False
+
+    # --- Fallback to flash on low confidence still respects needs_switch ---
+
+    def test_low_confidence_needs_switch(self):
+        """Low confidence → flash. If current is local, needs_switch is True."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.2)  # below threshold
+        router = self._make_router(mock)
+
+        result = router.resolve("vague query", current_tier="local")
+        assert result["tier"] == "flash"  # default
+        assert result["needs_switch"] is True
+
+    def test_low_confidence_no_needs_switch(self):
+        """Low confidence → flash. Current is pro → downgrade, needs_switch is True."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.2)
+        router = self._make_router(mock)
+
+        result = router.resolve("vague query", current_tier="pro")
+        assert result["tier"] == "flash"
+        assert result["needs_switch"] is True
+
+    # --- Unknown current_tier ---
+
+    def test_unknown_current_tier(self):
+        """Unknown current_tier defaults to flash for comparison."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+
+        result = router.resolve("complex query", current_tier="nonexistent")
+        # nonexistent → flash (0), pro = 2 → needs_switch is True
+        assert result["tier"] == "pro"
+        assert result["needs_switch"] is True
+
+
+class TestGetRouterSingleton:
+    """Test the module-level get_router() singleton."""
+
+    def setup_method(self):
+        from smart_router.router import reset_router
+        reset_router()
+
+    def teardown_method(self):
+        from smart_router.router import reset_router
+        reset_router()
+
+    def test_get_router_returns_model_router(self):
+        from smart_router.router import get_router
+        router = get_router()
+        assert isinstance(router, ModelRouter)
+
+    def test_get_router_same_instance(self):
+        """Second call returns the same object (singleton)."""
+        from smart_router.router import get_router
+        r1 = get_router()
+        r2 = get_router()
+        assert r1 is r2
+
+    def test_get_router_respects_encoder_model(self):
+        """First call's encoder_model is used; subsequent calls ignore it."""
+        from smart_router.router import get_router, reset_router
+        reset_router()
+        r1 = get_router(encoder_model="custom-embed")
+        r2 = get_router(encoder_model="ignored")
+        assert r1 is r2
+        assert r1.encoder_model == "custom-embed"
+
+    def test_reset_router_creates_new_instance(self):
+        """After reset, get_router returns a fresh instance."""
+        from smart_router.router import get_router, reset_router
+        r1 = get_router()
+        reset_router()
+        r2 = get_router()
+        assert r1 is not r2
+
+    def test_get_router_passes_ollama_manager(self):
+        """Ollama manager is stored on the singleton."""
+        from smart_router.router import get_router, reset_router
+        reset_router()
+        ollama = MagicMock()
+        r1 = get_router(ollama_manager=ollama)
+        assert r1._ollama is ollama
+        # Second call with different ollama is ignored (singleton already cached)
+        r2 = get_router(ollama_manager=MagicMock())
+        assert r2._ollama is ollama  # still the first one

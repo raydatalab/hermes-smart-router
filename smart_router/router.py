@@ -18,6 +18,36 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Tier ordering for needs_switch comparison: higher index = more capable.
+_TIER_ORDER = {"local": 0, "flash": 1, "pro": 2}
+
+# Module-level singleton — agent pays init cost once per session.
+_router_instance: Optional["ModelRouter"] = None
+
+
+def get_router(
+    encoder_model: str = "nomic-embed-text",
+    ollama_manager: "Optional[OllamaManager]" = None,
+) -> "ModelRouter":
+    """Return the module-level ModelRouter singleton.
+
+    The first call initializes the router (OllamaEncoder + config loading,
+    ~2-3s). Subsequent calls return the cached instance in microseconds.
+    """
+    global _router_instance
+    if _router_instance is None:
+        _router_instance = ModelRouter(
+            encoder_model=encoder_model,
+            ollama_manager=ollama_manager,
+        )
+    return _router_instance
+
+
+def reset_router() -> None:
+    """Reset the singleton (for tests)."""
+    global _router_instance
+    _router_instance = None
+
 
 class ModelRouter:
     """Routes queries to the optimal model tier using semantic similarity."""
@@ -125,18 +155,26 @@ class ModelRouter:
             logger.error(f"Classification failed: {e}", exc_info=True)
             return DEFAULT_TIER
 
-    def resolve(self, query: str) -> dict:
+    def resolve(self, query: str, current_tier: Optional[str] = None) -> dict:
         """
         Full routing resolution: classify + lifecycle management + model config.
 
         When routing to the local tier this ensures Ollama is running (if a
         manager is attached). When routing away it starts the idle kill timer.
 
+        Args:
+            query: The user's input text.
+            current_tier: The tier the agent is currently using (local/flash/pro).
+                When provided, the result includes a ``needs_switch`` boolean
+                that is True when the recommended tier differs from the
+                current one (upgrade or downgrade). Omit to skip comparison.
+
         Returns:
             {
                 "tier": str,
                 "model": {"provider": ..., "model": ...},
                 "ollama_ready": bool | None,   # None if no ollama manager
+                "needs_switch": bool,           # True when recommended != current
             }
         """
         tier = self.classify(query)
@@ -145,11 +183,20 @@ class ModelRouter:
         if self._ollama is not None and tier == "local":
             ollama_ready = self._ollama.ensure_running()
 
-        return {
+        result: dict = {
             "tier": tier,
             "model": self._get_model_for_tier(tier),
             "ollama_ready": ollama_ready,
         }
+
+        if current_tier is not None:
+            recommended = _TIER_ORDER.get(tier, _TIER_ORDER[DEFAULT_TIER])
+            current = _TIER_ORDER.get(current_tier, _TIER_ORDER[DEFAULT_TIER])
+            result["needs_switch"] = recommended != current
+        else:
+            result["needs_switch"] = False
+
+        return result
 
     def get_model(self, query: str) -> dict:
         """

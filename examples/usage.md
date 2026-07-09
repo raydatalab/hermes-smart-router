@@ -65,26 +65,35 @@ python -m smart_router tiers --json
 ## Python API
 
 ```python
-from smart_router.router import ModelRouter
-from smart_router.ollama import OllamaManager
+from smart_router.router import get_router
 
-# Simple: classify only (no lifecycle management)
-router = ModelRouter()
+# Get the module singleton — init cost paid once, reused across calls
+router = get_router()
+
+# Classify only
 tier = router.classify("What is the capital of France?")
 # → "local"
 
 model = router.get_model("Write a Python script to parse JSON")
 # → {"provider": "openrouter", "model": "google/gemini-flash-1.5"}
 
-# Full lifecycle: classify + manage Ollama
+# Full resolution with tier comparison
+decision = router.resolve("Explain how DNS works", current_tier="flash")
+# → {"tier": "flash", "model": {...}, "ollama_ready": null, "needs_switch": false}
+
+decision = router.resolve("Design a distributed database", current_tier="flash")
+# → {"tier": "pro", "model": {...}, "ollama_ready": null, "needs_switch": true}
+
+# Ollama lifecycle requires an OllamaManager — pass it once when creating the singleton
+from smart_router.router import get_router, reset_router
+from smart_router.ollama import OllamaManager
+
+reset_router()  # clear cached singleton
 ollama = OllamaManager()
-router = ModelRouter(ollama_manager=ollama)
+router = get_router(ollama_manager=ollama)
 
-decision = router.resolve("Explain how DNS works")
-# → {"tier": "flash", "model": {...}, "ollama_ready": null}
-
-decision = router.resolve("Hello, how are you?")
-# → {"tier": "local", "model": {...}, "ollama_ready": true}
+decision = router.resolve("Hello, how are you?", current_tier="flash")
+# → {"tier": "local", "model": {...}, "ollama_ready": true, "needs_switch": true}
 # (ollama_ready=true means Ollama is running and model is loaded)
 
 # Debug: get full routing info
