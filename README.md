@@ -1,5 +1,11 @@
 # Hermes Smart Router
 
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/Hermes-v0.17+-purple.svg" alt="Hermes">
+</p>
+
 Intelligent model tier routing for Hermes Agent — automatically selects the appropriate model for each query.
 
 ## The Problem
