@@ -3,6 +3,9 @@ name = "hermes-smart-router"
 version = "0.1.0"
 description = "Intelligent model tier routing for Hermes Agent"
 requires-python = ">=3.10"
+dependencies = [
+    "semantic-router[ollama]>=0.1.15",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

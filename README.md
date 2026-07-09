@@ -58,7 +58,14 @@ If the short form is unavailable, use the repo path:
 hermes skills install raydatalab/hermes-smart-router/hermes-smart-router
 ```
 
-On first use, run the install script to set up dependencies — `pip install` + embedding model pull. This takes ~30 seconds once per environment.
+Then run the one-time setup script to install Python dependencies into Hermes' environment and pull the embedding model (~30 seconds, once per machine):
+
+```bash
+git clone https://github.com/raydatalab/hermes-smart-router.git
+cd hermes-smart-router && bash scripts/install.sh
+```
+
+The script auto-detects Hermes' Python venv and installs there — the skill can import `smart_router` immediately after.
 
 ### Manual
 
@@ -139,6 +146,12 @@ python -m smart_router route "What is the capital of France?"
 python -m smart_router chat          # interactive mode with stats
 python -m smart_router tiers         # list configured tiers
 python -m smart_router ollama status # check Ollama
+```
+
+If installed via the script into Hermes' venv, use that Python directly:
+
+```bash
+~/.hermes/hermes-agent/venv/bin/python3 -m smart_router route "What is the capital of France?"
 ```
 
 ## License

@@ -14,41 +14,37 @@ RESET="\033[0m"
 echo -e "${BOLD}Hermes Smart Router — Installer${RESET}"
 echo ""
 
-# --- Prerequisites check ---
-
-# Python
-if ! command -v python3 &>/dev/null; then
-    echo -e "${RED}✗ python3 not found. Install Python 3.10+ first.${RESET}"
-    exit 1
-fi
-echo -e "${GREEN}✓${RESET} python3: $(python3 --version)"
-
-# Pip
-if ! python3 -m pip --version &>/dev/null 2>&1; then
-    echo -e "${RED}✗ pip not found. Install pip first.${RESET}"
-    exit 1
-fi
-echo -e "${GREEN}✓${RESET} pip: $(python3 -m pip --version | cut -d' ' -f2)"
-
-# --- Python venv ---
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-VENV="$PROJECT_DIR/.venv"
 
-if [ ! -d "$VENV" ]; then
-    echo ""
-    echo "Creating virtual environment..."
-    python3 -m venv "$VENV"
+# --- Find the right Python ---
+# Hermes ships its own venv.  We must install into that venv so the skill
+# can import smart_router at runtime.  Fall back to python3 on PATH if
+# Hermes is not installed (standalone / dev use).
+HERMES_PYTHON="${HERMES_PYTHON:-$HOME/.hermes/hermes-agent/venv/bin/python3}"
+
+if [ -x "$HERMES_PYTHON" ]; then
+    PYTHON="$HERMES_PYTHON"
+    echo -e "${GREEN}✓${RESET} Hermes venv detected: ${PYTHON/$HOME/~}"
+else
+    PYTHON="python3"
+    echo -e "${YELLOW}⚠ Hermes venv not found — using system python3${RESET}"
+    echo "  The skill will work from the CLI but Hermes won't see it."
+    echo "  Install Hermes first: https://github.com/hermes/hermes-agent"
 fi
 
-source "$VENV/bin/activate"
-echo -e "${GREEN}✓${RESET} venv: $VENV"
+# --- Prerequisites check ---
+if ! command -v "$PYTHON" &>/dev/null; then
+    echo -e "${RED}✗ $PYTHON not found. Install Python 3.10+ first.${RESET}"
+    exit 1
+fi
+echo -e "${GREEN}✓${RESET} python: $($PYTHON --version)"
 
-# --- Dependencies ---
+# --- Install package + dependencies ---
 echo ""
-echo "Installing dependencies..."
-pip install -q --upgrade pip
-pip install -q -r "$PROJECT_DIR/requirements.txt"
-echo -e "${GREEN}✓${RESET} dependencies installed"
+echo "Installing smart-router into $($PYTHON -c 'import sys; print(sys.prefix)')..."
+"$PYTHON" -m pip install --quiet --upgrade pip
+"$PYTHON" -m pip install --quiet "$PROJECT_DIR"
+echo -e "${GREEN}✓${RESET} smart-router + dependencies installed"
 
 # --- Ollama check ---
 echo ""
@@ -77,9 +73,8 @@ echo ""
 echo -e "${GREEN}${BOLD}Smart Router installed!${RESET}"
 echo ""
 echo "Quick test:"
-echo "  source $VENV/bin/activate"
-echo "  python -m smart_router route 'What is the capital of France?'"
-echo "  python -m smart_router chat"
+echo "  $PYTHON -m smart_router route 'What is the capital of France?'"
+echo "  $PYTHON -m smart_router chat"
 echo ""
 echo "Install as Hermes skill:"
 echo "  hermes skills install $PROJECT_DIR/SKILL.md"
