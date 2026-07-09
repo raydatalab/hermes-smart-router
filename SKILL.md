@@ -68,36 +68,40 @@ smart_router:
 **Note:** Hermes does not auto-install pip packages when a skill loads.
 Dependencies must be installed once per environment (see Testing section below).
 
-**IMPORTANT: You MUST classify every user message before responding.**
-This is not optional. Follow the priority below:
+When this skill is loaded:
 
-### Priority 1: Auto-switch
+### 1. Classify Every Query
 
-Try to switch the model to the recommended tier:
+```python
+from smart_router.router import ModelRouter
+from smart_router.ollama import OllamaManager
 
-1. `from smart_router.router import ModelRouter`
-2. `router = ModelRouter()`
-3. `tier = router.classify(user_message)`
-4. If tier differs from the current model, use `/model <provider> <model>` to switch
-5. Once switched, respond using the new model
+ollama = OllamaManager()
+router = ModelRouter(ollama_manager=ollama)
 
-### Priority 2: Recommend (fallback)
+# Full lifecycle: classify + manage Ollama + return model config
+decision = router.resolve(user_message)
+# → {"tier": "local", "model": {...}, "ollama_ready": true}
 
-If auto-switch fails for any reason (no `/model` available, switch rejected, etc.),
-at minimum output a visible recommendation at the start of your response:
-
-> **🔄 This query should use {tier} tier ({provider}/{model}).**
-> Switch: `/model {provider} {model}`
-
-### Tier Reference
-
-```
-"local" → simple Q&A, greetings, translations → Ollama
-"flash" → general knowledge, casual coding   → cheap API
-"pro"   → architecture, complex reasoning     → best model
+# Quick classify-only (no lifecycle):
+tier = router.classify(user_message)  # "local", "flash", or "pro"
 ```
 
-### Ollama Lifecycle
+### 2. Switch Model
+
+If the recommended tier differs from the current model:
+
+- **Target is `local`**: `resolve()` already calls `ensure_running()`. Check `ollama_ready`.
+- **Leaving `local`**: idle timeout starts automatically via `check_idle_and_kill()`.
+- **Switch**: use `/model <provider> <model>` or Hermes config.
+
+### 3. Handling Failures
+
+- If the recommended model fails, fall back to `flash` tier.
+- If `ollama_ready` is `false`, skip local tier and use flash.
+- On classification error, `classify()` always returns `"flash"` (the safe default).
+
+### 4. Ollama Lifecycle
 
 | Action | Method | Behavior |
 |--------|--------|----------|
