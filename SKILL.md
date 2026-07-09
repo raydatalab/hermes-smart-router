@@ -1,5 +1,5 @@
 ---
-name: smart-router
+name: hermes-smart-router
 description: Intelligent model tier routing for Hermes — auto-selects local, flash, or pro per query
 version: 0.1.0
 author: raydatalab
