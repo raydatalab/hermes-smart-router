@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+
+# Test
+.pytest_cache/
+htmlcov/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local-only notes / internal docs
+NOTES.md
+CLAUDE.md
+config.local.yaml
+fix-instructions.md
+
+# Skill artifacts
+*.swp
+*.swo
