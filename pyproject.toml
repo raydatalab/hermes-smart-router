@@ -1,6 +1,6 @@
 [project]
 name = "hermes-smart-router"
-version = "0.1.0"
+version = "0.1.5"
 description = "Intelligent model tier routing for Hermes Agent"
 requires-python = ">=3.10"
 dependencies = [

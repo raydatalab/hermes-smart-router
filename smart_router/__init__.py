@@ -7,4 +7,4 @@ Classifies queries on demand and recommends the optimal model tier:
 - pro (frontier API, highest quality)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.5"

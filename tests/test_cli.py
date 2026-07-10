@@ -263,3 +263,80 @@ class TestVerboseFlag:
     def test_verbose_enables_debug(self):
         exit_code, stdout, stderr = _run_main(["tiers", "--verbose", "--json"])
         assert exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# Status command
+# ---------------------------------------------------------------------------
+
+class TestStatusCommand:
+    """Test the status subcommand."""
+
+    def test_status_basic(self):
+        exit_code, stdout, stderr = _run_main(["status"])
+        assert exit_code == 0
+        assert "Version:" in stdout
+        assert "Default tier:" in stdout
+        assert "Encoder:" in stdout
+        assert "Ollama:" in stdout
+
+    def test_status_shows_configured_tiers(self):
+        exit_code, stdout, stderr = _run_main(["status"])
+        assert "[local]" in stdout
+        assert "[flash]" in stdout
+        assert "[pro]" in stdout
+
+    def test_status_shows_version(self):
+        from smart_router import __version__
+        exit_code, stdout, stderr = _run_main(["status"])
+        assert __version__ in stdout
+
+    def test_status_json(self):
+        with patch("smart_router.ollama.OllamaManager") as MockMgr:
+            mock = MagicMock()
+            mock.status.return_value = {
+                "running": False,
+                "binary_exists": True,
+                "model": "qwen3:14b",
+                "model_loaded": False,
+                "model_pulled": True,
+                "idle_seconds": -1,
+                "idle_timeout": 300,
+                "our_pid": None,
+                "wsl": False,
+            }
+            MockMgr.return_value = mock
+
+            exit_code, stdout, stderr = _run_main(["status", "--json"])
+            assert exit_code == 0
+            data = json.loads(stdout)
+            assert "version" in data
+            assert "default_tier" in data
+            assert "encoder_model" in data
+            assert "tiers" in data
+            assert "ollama" in data
+            assert "local" in data["tiers"]
+            assert "flash" in data["tiers"]
+            assert "pro" in data["tiers"]
+
+    def test_status_json_ollama_fields(self):
+        with patch("smart_router.ollama.OllamaManager") as MockMgr:
+            mock = MagicMock()
+            mock.status.return_value = {
+                "running": True,
+                "binary_exists": True,
+                "model": "llama3.2:3b",
+                "model_loaded": True,
+                "model_pulled": True,
+                "idle_seconds": 42,
+                "idle_timeout": 300,
+                "our_pid": 12345,
+                "wsl": False,
+            }
+            MockMgr.return_value = mock
+
+            exit_code, stdout, stderr = _run_main(["status", "--json"])
+            data = json.loads(stdout)
+            assert data["ollama"]["running"] is True
+            assert data["ollama"]["model"] == "llama3.2:3b"
+            assert data["ollama"]["idle_seconds"] == 42

@@ -137,6 +137,10 @@ DEFAULT_TIER = "flash"
 # Confidence threshold below which we fall back to default
 MIN_CONFIDENCE = 0.6
 
+# Queries shorter than this skip embedding and return DEFAULT_TIER.
+# Greetings, one-liners, and simple lookups don't need semantic routing.
+SHORT_QUERY_THRESHOLD = 20
+
 # Active configuration — runtime-mutable copy, overridden by config.local.yaml
 # and smart_router.tiers. Deep copy prevents mutations from leaking into
 # DEFAULT_TIERS (which must stay pristine as the reference template).

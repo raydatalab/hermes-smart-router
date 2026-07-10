@@ -6,11 +6,13 @@ Usage:
     python -m smart_router ollama start|stop|status [--json]
     python -m smart_router chat [--verbose]
     python -m smart_router tiers              # list configured tiers
+    python -m smart_router status [--json]    # show version, tiers, Ollama status
 
 Examples:
     python -m smart_router route "What is the capital of France?"
     python -m smart_router route --json "Design a microservice architecture"
     python -m smart_router ollama status
+    python -m smart_router status
     python -m smart_router chat
 """
 
@@ -168,6 +170,66 @@ def cmd_tiers(args: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Status command
+# ---------------------------------------------------------------------------
+
+def cmd_status(args: list[str]) -> None:
+    """Show smart-router version, configured tiers, and Ollama status."""
+    json_mode, verbose, remaining = _parse_flags(args)
+    _setup_logging(verbose)
+
+    from . import __version__
+    from .tier import get_tiers, DEFAULT_TIER
+    from .ollama import OllamaManager
+
+    tiers = get_tiers()
+    ollama = OllamaManager()
+    ostatus = ollama.status()
+
+    status_data = {
+        "version": __version__,
+        "default_tier": DEFAULT_TIER,
+        "encoder_model": "nomic-embed-text",
+        "tiers": {},
+        "ollama": ostatus,
+    }
+
+    for name, config in tiers.items():
+        status_data["tiers"][name] = {
+            "model": dict(config["models"]),
+            "utterance_count": len(config["utterances"]),
+        }
+
+    if json_mode:
+        print(json.dumps(status_data, indent=2, ensure_ascii=False))
+        return
+
+    print("Smart Router Status")
+    print(SEPARATOR)
+    print(f"  Version:       {__version__}")
+    print(f"  Default tier:  {DEFAULT_TIER}")
+    print(f"  Encoder:       nomic-embed-text (Ollama)")
+    print()
+    print("  Configured Tiers:")
+    for name, config in tiers.items():
+        marker = " ★ default" if name == DEFAULT_TIER else ""
+        m = config["models"]
+        base_url = m.get("base_url", "")
+        url_info = f" @ {base_url}" if base_url else ""
+        print(f"    [{name}]{marker}")
+        print(f"      Model:  {m['provider']}/{m['model']}{url_info}")
+    print()
+    print("  Ollama:")
+    print(f"    Running:       {'✓ yes' if ostatus['running'] else '✗ no'}")
+    print(f"    Binary:        {'✓ found' if ostatus['binary_exists'] else '✗ not found'}")
+    print(f"    Chat model:    {ostatus['model'] or '(none)'}")
+    print(f"    Model loaded:  {'✓ yes' if ostatus['model_loaded'] else '✗ no'}")
+    print(f"    Model pulled:  {'✓ yes' if ostatus['model_pulled'] else '✗ no'}")
+    if ostatus.get("idle_seconds") is not None:
+        print(f"    Idle:          {ostatus['idle_seconds']}s (timeout: {ostatus['idle_timeout']}s)")
+
+
+# ---------------------------------------------------------------------------
 # Chat (interactive) command
 # ---------------------------------------------------------------------------
 
@@ -287,6 +349,7 @@ def main() -> None:
         "  python -m smart_router ollama start|stop|status [--json]\n"
         "  python -m smart_router chat  [--verbose]\n"
         "  python -m smart_router tiers [--json]\n"
+        "  python -m smart_router status [--json]\n"
         "\n"
         "Examples:\n"
         '  python -m smart_router route "What is the capital of France?"\n'
@@ -309,11 +372,13 @@ def main() -> None:
         cmd_chat(args)
     elif command == "tiers":
         cmd_tiers(args)
+    elif command == "status":
+        cmd_status(args)
     elif command in ("--help", "-h", "help"):
         print(usage_text)
     else:
         print(f"Unknown command: {command}", file=sys.stderr)
-        print("Available: route, ollama, chat, tiers", file=sys.stderr)
+        print("Available: route, ollama, chat, tiers, status", file=sys.stderr)
         sys.exit(1)
 
 

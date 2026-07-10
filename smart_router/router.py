@@ -11,7 +11,7 @@ from typing import Optional, TYPE_CHECKING
 from semantic_router import Route, SemanticRouter
 from semantic_router.encoders import OllamaEncoder
 
-from .tier import TIERS, DEFAULT_TIER, MIN_CONFIDENCE, ensure_config_loaded
+from .tier import TIERS, DEFAULT_TIER, MIN_CONFIDENCE, SHORT_QUERY_THRESHOLD, ensure_config_loaded
 
 if TYPE_CHECKING:
     from .ollama import OllamaManager
@@ -112,6 +112,21 @@ class ModelRouter:
             One of: "local", "flash", "pro". Defaults to DEFAULT_TIER on low
             confidence or error.
         """
+        # Fast-path: queries under SHORT_QUERY_THRESHOLD chars skip embedding.
+        # Greetings, yes/no, short lookups don't need semantic routing.
+        stripped = query.strip()
+        if len(stripped) < SHORT_QUERY_THRESHOLD:
+            logger.debug(
+                f"Short query ({len(stripped)} chars) — fast-path to default '{DEFAULT_TIER}'"
+            )
+            tier = DEFAULT_TIER
+            if self._ollama is not None:
+                if tier == "local":
+                    self._ollama.mark_used()
+                else:
+                    self._ollama.check_idle_and_kill()
+            return tier
+
         self._initialize()
 
         try:
@@ -175,6 +190,7 @@ class ModelRouter:
                 "model": {"provider": ..., "model": ...},
                 "ollama_ready": bool | None,   # None if no ollama manager
                 "needs_switch": bool,           # True when recommended != current
+                "reason": str,                  # Human-readable explanation
             }
         """
         tier = self.classify(query)
@@ -183,16 +199,26 @@ class ModelRouter:
         if self._ollama is not None and tier == "local":
             ollama_ready = self._ollama.ensure_running()
 
+        # Build a human-readable reason from the tier description
+        tier_config = TIERS.get(tier, TIERS.get(DEFAULT_TIER, {}))
+        tier_desc = tier_config.get("description", "")
+        reason = f"Query classified as '{tier}' — {tier_desc}"
+
         result: dict = {
             "tier": tier,
             "model": self._get_model_for_tier(tier),
             "ollama_ready": ollama_ready,
+            "reason": reason,
         }
 
         if current_tier is not None:
             recommended = _TIER_ORDER.get(tier, _TIER_ORDER[DEFAULT_TIER])
             current = _TIER_ORDER.get(current_tier, _TIER_ORDER[DEFAULT_TIER])
-            result["needs_switch"] = recommended != current
+            needs_switch = recommended != current
+            result["needs_switch"] = needs_switch
+            if needs_switch and current_tier in _TIER_ORDER:
+                direction = "upgrade" if recommended > current else "downgrade"
+                result["reason"] = reason + f" ({direction} from '{current_tier}')"
         else:
             result["needs_switch"] = False
 
@@ -225,8 +251,7 @@ class ModelRouter:
         Returns:
             {query, tier, model_config, tier_description}
         """
-        self._initialize()
-        tier = self.classify(query)
+        tier = self.classify(query)  # handles lazy init + fast-path internally
         config = TIERS.get(tier, TIERS[DEFAULT_TIER])
         return {
             "query": query,

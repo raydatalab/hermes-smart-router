@@ -110,7 +110,7 @@ class TestClassify:
         mock.return_value = _make_mock_route_choice("flash", 0.85)
         router = self._make_router(mock)
 
-        result = router.classify("any query")
+        result = router.classify("any query for routing test suite")
         assert isinstance(result, str)
         assert result in TIERS
 
@@ -120,7 +120,7 @@ class TestClassify:
         mock.return_value = _make_mock_route_choice("pro", 0.3)  # below 0.6
         router = self._make_router(mock)
 
-        result = router.classify("ambiguous query")
+        result = router.classify("ambiguous routing test query here")
         assert result == DEFAULT_TIER  # "flash"
 
     def test_classify_exactly_at_threshold(self):
@@ -129,7 +129,7 @@ class TestClassify:
         mock.return_value = _make_mock_route_choice("local", MIN_CONFIDENCE)  # 0.6
         router = self._make_router(mock)
 
-        result = router.classify("borderline query")
+        result = router.classify("borderline routing test query here")
         assert result == "local"
 
     def test_classify_none_result_falls_back(self):
@@ -138,7 +138,7 @@ class TestClassify:
         mock.return_value = None
         router = self._make_router(mock)
 
-        result = router.classify("no route matched")
+        result = router.classify("no valid route could be matched here")
         assert result == DEFAULT_TIER
 
     def test_classify_unknown_tier_falls_back(self):
@@ -147,7 +147,7 @@ class TestClassify:
         mock.return_value = _make_mock_route_choice("unknown_tier", 0.9)
         router = self._make_router(mock)
 
-        result = router.classify("something weird")
+        result = router.classify("something weird routing test query")
         assert result == DEFAULT_TIER
 
     def test_classify_router_exception_falls_back(self):
@@ -156,7 +156,7 @@ class TestClassify:
         mock.side_effect = RuntimeError("something broke")
         router = self._make_router(mock)
 
-        result = router.classify("error-causing query")
+        result = router.classify("error causing routing test query here")
         assert result == DEFAULT_TIER
 
     def test_classify_no_similarity_score(self):
@@ -169,7 +169,7 @@ class TestClassify:
         mock.return_value = choice
         router = self._make_router(mock)
 
-        result = router.classify("simple question")
+        result = router.classify("simple question about routing tiers")
         assert result == "local"
 
 
@@ -194,7 +194,7 @@ class TestGetModel:
         mock.return_value = _make_mock_route_choice("local", 0.9)
         router = self._make_router(mock)
 
-        model = router.get_model("simple query")
+        model = router.get_model("simple routing test query here")
         assert model["provider"] == "custom"
         assert model["model"] == "llama3.2:3b"
         assert "base_url" in model
@@ -204,7 +204,7 @@ class TestGetModel:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)
 
-        model = router.get_model("moderate query")
+        model = router.get_model("moderate routing test query here")
         assert model["provider"] == "openrouter"
         assert model["model"] == "google/gemini-flash-1.5"
 
@@ -213,7 +213,7 @@ class TestGetModel:
         mock.return_value = _make_mock_route_choice("pro", 0.9)
         router = self._make_router(mock)
 
-        model = router.get_model("complex query")
+        model = router.get_model("complex routing test query here")
         assert model["provider"] == "anthropic"
         assert model["model"] == "claude-sonnet-4"
 
@@ -222,7 +222,7 @@ class TestGetModel:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)
 
-        result = router.get_model("any query")
+        result = router.get_model("any query for routing test suite")
         assert isinstance(result, dict)
         assert "provider" in result
         assert "model" in result
@@ -233,7 +233,7 @@ class TestGetModel:
         mock.return_value = _make_mock_route_choice("pro", 0.2)
         router = self._make_router(mock)
 
-        model = router.get_model("ambiguous")
+        model = router.get_model("ambiguous routing tier test here")
         # Should be flash (DEFAULT_TIER), not pro
         assert model["provider"] == "openrouter"
         assert model["model"] == "google/gemini-flash-1.5"
@@ -273,7 +273,7 @@ class TestRouteInfo:
         mock.return_value = None  # Force fallback
         router = self._make_router(mock)
 
-        info = router.route_info("whatever")
+        info = router.route_info("whatever routing test query here")
         assert info["tier"] == DEFAULT_TIER
         assert len(info["description"]) > 0
 
@@ -292,7 +292,7 @@ class TestLazyInit:
             router._initialized = True
 
         with patch.object(router, "_initialize", side_effect=_fake_init) as spy:
-            router.classify("test")
+            router.classify("test classify router initialize query")
             assert spy.call_count == 1
             assert router._initialized is True
 
@@ -304,8 +304,8 @@ class TestLazyInit:
         router._initialized = True
 
         with patch.object(router, "_initialize", wraps=router._initialize) as spy:
-            router.classify("first")
-            router.classify("second")
+            router.classify("first test classify call query here")
+            router.classify("second test classify call query here")
             # Since already initialized, _initialize should return early
             assert spy.call_count == 2  # called but returns immediately
 
@@ -349,7 +349,7 @@ class TestOllamaIntegration:
         mock.return_value = _make_mock_route_choice("local", 0.9)
         router = self._make_router(mock, ollama)
 
-        result = router.classify("simple question")
+        result = router.classify("simple question about routing tiers")
         assert result == "local"
         ollama.mark_used.assert_called_once()
 
@@ -370,7 +370,7 @@ class TestOllamaIntegration:
         mock.return_value = _make_mock_route_choice("local", 0.9)
         router = self._make_router(mock)  # no ollama
 
-        result = router.classify("simple question")
+        result = router.classify("simple question about routing tiers")
         assert result == "local"  # doesn't crash
 
     def test_classify_flash_checks_idle(self):
@@ -380,7 +380,7 @@ class TestOllamaIntegration:
         mock.return_value = _make_mock_route_choice("flash", 0.85)
         router = self._make_router(mock, ollama)
 
-        result = router.classify("general question")
+        result = router.classify("general routing test question here")
         assert result == "flash"
         ollama.check_idle_and_kill.assert_called_once()
         ollama.mark_used.assert_not_called()
@@ -392,7 +392,7 @@ class TestOllamaIntegration:
         mock.return_value = _make_mock_route_choice("pro", 0.2)  # below threshold
         router = self._make_router(mock, ollama)
 
-        result = router.classify("vague question")
+        result = router.classify("vague routing test question here")
         assert result == "flash"  # default
         ollama.check_idle_and_kill.assert_called_once()
 
@@ -422,7 +422,7 @@ class TestResolve:
         mock.return_value = _make_mock_route_choice("local", 0.9)
         router = self._make_router(mock, ollama)
 
-        result = router.resolve("simple question")
+        result = router.resolve("simple question about routing tiers")
         assert result["tier"] == "local"
         assert result["model"]["provider"] == "custom"
         assert result["ollama_ready"] is True
@@ -436,7 +436,7 @@ class TestResolve:
         mock.return_value = _make_mock_route_choice("local", 0.9)
         router = self._make_router(mock, ollama)
 
-        result = router.resolve("simple question")
+        result = router.resolve("simple question about routing tiers")
         assert result["tier"] == "local"
         assert result["ollama_ready"] is False
 
@@ -459,7 +459,7 @@ class TestResolve:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)  # no ollama
 
-        result = router.resolve("general question")
+        result = router.resolve("general routing test question here")
         assert result["tier"] == "flash"
         assert result["ollama_ready"] is None
         assert "provider" in result["model"]
@@ -470,7 +470,7 @@ class TestResolve:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)
 
-        result = router.resolve("explain DNS")
+        result = router.resolve("explain DNS routing concept thoroughly")
         assert result["tier"] == "flash"
         assert result["model"] == {"provider": "openrouter", "model": "google/gemini-flash-1.5"}
 
@@ -480,12 +480,13 @@ class TestResolve:
         mock.return_value = _make_mock_route_choice("pro", 0.9)
         router = self._make_router(mock)
 
-        result = router.resolve("any query")
+        result = router.resolve("any query for routing test suite")
         assert isinstance(result, dict)
         assert "tier" in result
         assert "model" in result
         assert "ollama_ready" in result
         assert "needs_switch" in result
+        assert "reason" in result
         assert "provider" in result["model"]
         assert "model" in result["model"]
 
@@ -515,7 +516,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)
 
-        result = router.resolve("explain DNS", current_tier="local")
+        result = router.resolve("explain DNS routing concept thoroughly", current_tier="local")
         assert result["tier"] == "flash"
         assert result["needs_switch"] is True
 
@@ -547,7 +548,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)
 
-        result = router.resolve("explain DNS", current_tier="flash")
+        result = router.resolve("explain DNS routing concept thoroughly", current_tier="flash")
         assert result["tier"] == "flash"
         assert result["needs_switch"] is False
 
@@ -557,7 +558,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("local", 0.9)
         router = self._make_router(mock)
 
-        result = router.resolve("what is 2+2", current_tier="pro")
+        result = router.resolve("what is two plus two equals then", current_tier="pro")
         assert result["tier"] == "local"
         assert result["needs_switch"] is True
 
@@ -567,7 +568,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("flash", 0.9)
         router = self._make_router(mock)
 
-        result = router.resolve("explain DNS", current_tier="pro")
+        result = router.resolve("explain DNS routing concept thoroughly", current_tier="pro")
         assert result["tier"] == "flash"
         assert result["needs_switch"] is True
 
@@ -600,7 +601,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("pro", 0.2)  # below threshold
         router = self._make_router(mock)
 
-        result = router.resolve("vague query", current_tier="local")
+        result = router.resolve("vague routing test query here", current_tier="local")
         assert result["tier"] == "flash"  # default
         assert result["needs_switch"] is True
 
@@ -610,7 +611,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("pro", 0.2)
         router = self._make_router(mock)
 
-        result = router.resolve("vague query", current_tier="pro")
+        result = router.resolve("vague routing test query here", current_tier="pro")
         assert result["tier"] == "flash"
         assert result["needs_switch"] is True
 
@@ -622,7 +623,7 @@ class TestResolveWithCurrentTier:
         mock.return_value = _make_mock_route_choice("pro", 0.95)
         router = self._make_router(mock)
 
-        result = router.resolve("complex query", current_tier="nonexistent")
+        result = router.resolve("complex routing test query here", current_tier="nonexistent")
         # nonexistent → flash (0), pro = 2 → needs_switch is True
         assert result["tier"] == "pro"
         assert result["needs_switch"] is True
@@ -678,3 +679,139 @@ class TestGetRouterSingleton:
         # Second call with different ollama is ignored (singleton already cached)
         r2 = get_router(ollama_manager=MagicMock())
         assert r2._ollama is ollama  # still the first one
+
+
+# ---------------------------------------------------------------------------
+# Fast-path tests
+# ---------------------------------------------------------------------------
+
+class TestFastPath:
+    """Test the fast-path for very short queries (< SHORT_QUERY_THRESHOLD chars)."""
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self):
+        from smart_router.tier import reset_tiers
+        reset_tiers()
+        yield
+        reset_tiers()
+
+    def test_short_query_returns_default_tier(self):
+        """Queries under threshold skip embedding and return DEFAULT_TIER."""
+        router = ModelRouter()
+        result = router.classify("hi")
+        assert result == DEFAULT_TIER
+
+    def test_short_query_does_not_initialize_encoder(self):
+        """Fast-path should never trigger _initialize()."""
+        router = ModelRouter()
+        with patch.object(router, "_initialize", wraps=router._initialize) as spy:
+            router.classify("hello")
+            assert spy.call_count == 0
+
+    def test_short_query_resolve_includes_reason(self):
+        """resolve() on short query still includes reason key."""
+        router = ModelRouter()
+        result = router.resolve("thanks")
+        assert result["tier"] == DEFAULT_TIER
+        assert "reason" in result
+        assert result["needs_switch"] is False
+
+    def test_boundary_20_chars_uses_router(self):
+        """Exactly threshold chars should NOT trigger fast-path."""
+        from smart_router.tier import SHORT_QUERY_THRESHOLD
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = ModelRouter()
+        router._encoder = MagicMock()
+        router._router = mock
+        router._initialized = True
+
+        boundary_query = "x" * SHORT_QUERY_THRESHOLD  # exactly 20 chars
+        result = router.classify(boundary_query)
+        assert result == "pro"
+        mock.assert_called_once()
+
+    def test_whitespace_padding_still_short(self):
+        """Whitespace-only padding shouldn't defeat fast-path."""
+        router = ModelRouter()
+        result = router.classify("   ok   ")
+        assert result == DEFAULT_TIER  # len(stripped) = 2, well under threshold
+
+
+# ---------------------------------------------------------------------------
+# Reason field tests
+# ---------------------------------------------------------------------------
+
+class TestResolveReason:
+    """Test the reason field in resolve() output."""
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self):
+        from smart_router.tier import reset_tiers
+        reset_tiers()
+        yield
+        reset_tiers()
+
+    def _make_router(self, mock_router, ollama_mgr=None):
+        router = ModelRouter(ollama_manager=ollama_mgr)
+        router._encoder = MagicMock()
+        router._router = mock_router
+        router._initialized = True
+        return router
+
+    def test_reason_present_in_resolve(self):
+        """resolve() always includes a non-empty 'reason' key."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = self._make_router(mock)
+        result = router.resolve("explain DNS routing concept thoroughly")
+        assert "reason" in result
+        assert isinstance(result["reason"], str)
+        assert len(result["reason"]) > 0
+
+    def test_reason_contains_tier_name(self):
+        """Reason mentions the chosen tier."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+        result = router.resolve("design a distributed database system architecture")
+        assert "pro" in result["reason"]
+
+    def test_reason_for_direct_match(self):
+        """Direct tier match produces descriptive reason from tier config."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("local", 0.92)
+        router = self._make_router(mock)
+        result = router.resolve("simple question about routing tiers")
+        assert "local" in result["reason"]
+        # The reason should reference the tier description
+        assert "Simple" in result["reason"] or "simple" in result["reason"]
+
+    def test_reason_no_current_tier(self):
+        """Without current_tier, reason is purely about classification."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.85)
+        router = self._make_router(mock)
+        result = router.resolve("general routing test question here")
+        assert "upgrade" not in result["reason"]
+        assert "downgrade" not in result["reason"]
+
+    def test_reason_upgrade_context(self):
+        """When needs_switch is upgrade, reason reflects direction."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+        result = router.resolve("complex architecture query here and now", current_tier="flash")
+        assert result["needs_switch"] is True
+        assert "upgrade" in result["reason"]
+        assert "flash" in result["reason"]
+
+    def test_reason_downgrade_context(self):
+        """When needs_switch is downgrade, reason reflects direction."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("local", 0.92)
+        router = self._make_router(mock)
+        result = router.resolve("what is two plus two equals then", current_tier="pro")
+        assert result["needs_switch"] is True
+        assert "downgrade" in result["reason"]
+        assert "pro" in result["reason"]
