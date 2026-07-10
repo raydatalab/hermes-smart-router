@@ -803,8 +803,9 @@ class TestResolveReason:
         router = self._make_router(mock)
         result = router.resolve("complex architecture query here and now", current_tier="flash")
         assert result["needs_switch"] is True
-        assert "upgrade" in result["reason"]
+        assert "Upgrade" in result["reason"]
         assert "flash" in result["reason"]
+        assert "pro" in result["reason"]
 
     def test_reason_downgrade_context(self):
         """When needs_switch is downgrade, reason reflects direction."""
@@ -813,5 +814,203 @@ class TestResolveReason:
         router = self._make_router(mock)
         result = router.resolve("what is two plus two equals then", current_tier="pro")
         assert result["needs_switch"] is True
-        assert "downgrade" in result["reason"]
+        assert "Downgrade" in result["reason"]
         assert "pro" in result["reason"]
+        assert "local" in result["reason"]
+
+
+# ---------------------------------------------------------------------------
+# Recommendation field tests (v0.2.0)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveRecommendation:
+    """Test the recommendation field in resolve() output."""
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self):
+        from smart_router.tier import reset_tiers
+        reset_tiers()
+        yield
+        reset_tiers()
+
+    def _make_router(self, mock_router, ollama_mgr=None):
+        router = ModelRouter(ollama_manager=ollama_mgr)
+        router._encoder = MagicMock()
+        router._router = mock_router
+        router._initialized = True
+        return router
+
+    def test_recommendation_present_in_resolve(self):
+        """resolve() always includes a 'recommendation' key."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = self._make_router(mock)
+        result = router.resolve("explain DNS routing concept thoroughly")
+        assert "recommendation" in result
+
+    def test_recommendation_none_when_no_switch(self):
+        """recommendation is None when no switch is needed."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = self._make_router(mock)
+        result = router.resolve("explain DNS routing concept thoroughly", current_tier="flash")
+        assert result["needs_switch"] is False
+        assert result["recommendation"] is None
+
+    def test_recommendation_none_when_no_current_tier(self):
+        """recommendation is None when current_tier not provided."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+        result = router.resolve("complex architecture")
+        assert result["recommendation"] is None
+
+    def test_recommendation_upgrade(self):
+        """Upgrade recommendation includes /model command and tier name."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+        result = router.resolve("complex architecture query here and now", current_tier="flash")
+        assert result["needs_switch"] is True
+        assert result["recommendation"] is not None
+        assert "/model" in result["recommendation"]
+        assert "pro" in result["recommendation"]
+
+    def test_recommendation_downgrade(self):
+        """Downgrade recommendation mentions saving costs."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("local", 0.92)
+        router = self._make_router(mock)
+        result = router.resolve("simple question about routing tiers", current_tier="pro")
+        assert result["needs_switch"] is True
+        assert result["recommendation"] is not None
+        assert "/model" in result["recommendation"]
+        assert "Downgrade" in result["recommendation"]
+        assert "save costs" in result["recommendation"].lower()
+
+    def test_recommendation_is_ready_to_paste(self):
+        """Recommendation string is self-contained — agent can paste directly."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+        result = router.resolve("design microservices", current_tier="local")
+        assert result["recommendation"] is not None
+        # Should start with 💡 and contain /model
+        assert result["recommendation"].startswith("💡")
+        assert "/model" in result["recommendation"]
+
+    def test_recommendation_contains_provider_and_model(self):
+        """Recommendation includes the actual provider/model for the switch."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = self._make_router(mock)
+        result = router.resolve("complex architecture query here and now", current_tier="flash")
+        rec = result["recommendation"]
+        assert "anthropic" in rec
+        assert "claude-sonnet-4" in rec
+
+
+# ---------------------------------------------------------------------------
+# Fast-path pattern tests (v0.2.0)
+# ---------------------------------------------------------------------------
+
+
+class TestFastPathPatterns:
+    """Test the regex-based fast-path pattern matching."""
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self):
+        from smart_router.tier import reset_tiers
+        reset_tiers()
+        yield
+        reset_tiers()
+
+    def test_greeting_hello_skips_encoder(self):
+        """'hello' should hit fast-path, never call _initialize."""
+        router = ModelRouter()
+        with patch.object(router, "_initialize", wraps=router._initialize) as spy:
+            result = router.classify("hello")
+            assert spy.call_count == 0
+            assert result == "flash"
+
+    def test_greeting_hi_with_punctuation(self):
+        """'hi!' matches greeting pattern and skips encoder."""
+        router = ModelRouter()
+        with patch.object(router, "_initialize", wraps=router._initialize) as spy:
+            result = router.classify("hi!")
+            assert spy.call_count == 0
+            assert result == "flash"
+
+    def test_chinese_greeting(self):
+        """'你好' matches Chinese greeting pattern."""
+        router = ModelRouter()
+        with patch.object(router, "_initialize", wraps=router._initialize) as spy:
+            result = router.classify("你好")
+            assert spy.call_count == 0
+            assert result == "flash"
+
+    def test_definition_query(self):
+        """'what is a cat' matches definition pattern."""
+        router = ModelRouter()
+        with patch.object(router, "_initialize", wraps=router._initialize) as spy:
+            result = router.classify("what is a cat")
+            assert spy.call_count == 0
+            assert result == "flash"
+
+    def test_complex_query_not_fast_pathed(self):
+        """Complex queries should still go through full classification."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = ModelRouter()
+        router._encoder = MagicMock()
+        router._router = mock
+        router._initialized = True
+
+        result = router.classify("design a distributed database system architecture")
+        assert result == "pro"  # went through mock, not fast-path
+
+    def test_fast_path_greeting_on_pro_triggers_needs_switch(self):
+        """pro user saying 'hello' → fast-path recommends flash downgrade."""
+        router = ModelRouter()
+        result = router.resolve("hello", current_tier="pro")
+        assert result["tier"] == "flash"  # fast-path recommends flash
+        assert result["needs_switch"] is True  # pro → flash is downgrade
+        assert "Fast-path" in result["reason"]
+        assert result["recommendation"] is not None
+
+    def test_reason_format_no_switch(self):
+        """When staying on same tier, reason confirms it's appropriate."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("flash", 0.9)
+        router = ModelRouter()
+        router._encoder = MagicMock()
+        router._router = mock
+        router._initialized = True
+        result = router.resolve("explain DNS routing concept thoroughly", current_tier="flash")
+        assert result["needs_switch"] is False
+        assert "appropriate" in result["reason"].lower() or "keeping" in result["reason"].lower()
+
+    def test_reason_format_downgrade_mentions_save_costs(self):
+        """Downgrade reason explicitly mentions cost savings."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("local", 0.92)
+        router = ModelRouter()
+        router._encoder = MagicMock()
+        router._router = mock
+        router._initialized = True
+        result = router.resolve("what is two plus two equals then", current_tier="pro")
+        assert result["needs_switch"] is True
+        assert "save costs" in result["reason"].lower()
+
+    def test_reason_format_upgrade_mentions_semantic_routing(self):
+        """Upgrade reason mentions it matched via semantic routing."""
+        mock = MagicMock()
+        mock.return_value = _make_mock_route_choice("pro", 0.95)
+        router = ModelRouter()
+        router._encoder = MagicMock()
+        router._router = mock
+        router._initialized = True
+        result = router.resolve("complex architecture query here and now", current_tier="flash")
+        assert result["needs_switch"] is True
+        assert "semantic routing" in result["reason"].lower()

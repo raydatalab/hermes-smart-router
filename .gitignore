@@ -30,6 +30,9 @@ tmp-*.md
 task-*.md
 analysis-*.md
 
+# Internal design docs (for Claude Code handoff)
+DESIGN-*.md
+
 # Skill artifacts
 *.swp
 *.swo

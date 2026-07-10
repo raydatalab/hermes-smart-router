@@ -1,7 +1,7 @@
 ---
 name: hermes-smart-router
-description: Intelligent model tier routing for Hermes — auto-selects local, flash, or pro per query
-version: 0.1.5
+description: Smart model-tier routing for Hermes — save 70%+ on API costs by auto-switching to cheaper models for simple queries. 100% local Ollama classification, zero API calls for routing.
+version: 0.2.0
 author: raydatalab
 license: MIT
 platforms: [linux, macos, wsl]
@@ -57,76 +57,66 @@ When skipped, you never notice. There is no penalty for not using it.
 
 ## CRITICAL — Read Before Responding
 
-Before responding to any non-trivial query:
+**You MUST call `router.resolve()` before answering any non-trivial query.**
+The user installed this skill to save money on API costs. Every response you
+send from the wrong tier is wasted tokens. This is not optional — it's the
+entire reason this skill exists.
 
-1. **Decide if routing is relevant.**
-   - Route if the response needs 3+ tool calls, complex reasoning,
-     architecture, multi-step code, or you're unsure about the current tier.
-   - Skip for greetings, thanks, translations, one-liners, basic facts.
-
-2. **Run the router** (via execute_code):
-   ```python
-   from smart_router.router import get_router
-
-   router = get_router()
-   decision = router.resolve(user_message, current_tier=ACTIVE_TIER)
-   # → {"tier": "pro", "model": {...}, "ollama_ready": null,
-   #    "needs_switch": true, "reason": "Query classified as 'pro' — ..."}
-   ```
-
-3. **Act on the result:**
-   - `needs_switch == false` → answer normally, don't mention routing.
-   - `needs_switch == true` → prepend a switch recommendation (see below).
-   - If the call errors or times out → skip, answer with current model.
-
-**ACTIVE_TIER** is your current tier (local/flash/pro). Check with `/tier`
-or ask the user if you don't know. Fast queries under 20 characters skip
-embedding and return instantly — it is safe to call on every message.
-
-## When to Route (Two Heuristics)
-
-**Heuristic 1:** Before responding to any query that requires 3+ tool calls,
-complex reasoning, architecture design, multi-step code, or debugging — run
-the classifier. Also route when you are unsure whether the current tier fits.
-
-**Heuristic 2:** Skip routing for simple greetings, translations, one-liner
-facts, single-file lookups, and queries that trivially fit the current tier.
-
-That's it. Two rules. If in doubt, route — the first call takes ~3 seconds,
-subsequent calls return in microseconds.
-
-## How to Route
-
-Use the module singleton — init cost is paid once per session:
+The call is cheap: first call takes ~3s, subsequent calls return in microseconds.
+Short queries and greetings skip the encoder entirely (fast-path, 0 cost).
 
 ```python
 from smart_router.router import get_router
 
 router = get_router()
-decision = router.resolve(user_message, current_tier="flash")  # your active tier
-# → {"tier": "pro", "model": {...}, "ollama_ready": null,
-#    "needs_switch": true, "reason": "Query classified as 'pro' — Complex code..."}
+decision = router.resolve(user_message, current_tier=ACTIVE_TIER)
+# → {"tier": "pro", "model": {...}, "needs_switch": true,
+#    "reason": "Upgrade from flash to pro — Complex code...",
+#    "recommendation": "💡 Switch to pro: `/model anthropic claude-sonnet-4` — ..."}
 ```
 
-`current_tier` must be one of `"local"`, `"flash"`, or `"pro"` — match
-whatever `/tier` reports. The `reason` field explains why the tier was chosen
-and includes direction ("upgrade from flash") when a switch is needed.
+**If `decision["recommendation"]` is not None**, paste it at the top of your
+response — it's ready to use, no formatting needed:
+
+```
+{decision["recommendation"]}
+
+[your actual response here]
+```
+
+**If `decision["recommendation"]` is None**, just answer normally.
+**If the call errors or times out**, skip it and answer — never retry.
+
+**ACTIVE_TIER** is your current tier (local/flash/pro). Check with `/tier`
+or ask the user if you don't know.
+
+### When to Skip
+
+Only skip routing for: greetings ("hello", "thanks"), translations,
+one-liner facts, queries under 20 characters. Everything else — route.
+
+### When to Route (Two Rules)
+
+**Rule 1:** Route before any response that needs 3+ tool calls, complex
+reasoning, architecture, multi-step code, debugging, or when you're unsure
+about the current tier.
+
+**Rule 2:** For everything else, route anyway if it takes more than a sentence
+to answer. The cost of routing (~3s on first call, <1ms after) is always
+lower than the cost of answering from the wrong tier.
+
+If in doubt, route.
 
 ## How to Act on the Result
 
-You **cannot execute `/model` yourself** — it is a user-side slash command.
-Instead, prepend a one-line recommendation to your reply:
+You **cannot execute `/model` yourself** — it's a user-side slash command.
 
-- **`needs_switch` is `false`** → say nothing, just answer.
-- **`needs_switch` is `true` and tier is an upgrade** (local→flash, local→pro, flash→pro):
-  *"💡 Switch to {tier}: `/model {provider} {model}`"*
-- **`needs_switch` is `true` and tier is a downgrade** (pro→flash, flash→local, pro→local):
-  *"💡 Downgrade to {tier}: `/model {provider} {model}`"*
-- For local tier: check `decision["ollama_ready"]` first — if `false`, mention that Ollama isn't ready.
-- **Classification errors out or times out** → skip, answer with current model. Do not retry.
-
-Check `decision["reason"]` for context — it tells you why the tier was chosen
-and whether it's an upgrade or downgrade.
+- **`recommendation` is a string** → paste it verbatim at the top of your reply.
+  The string already includes the emoji, the `/model` command, and the reason.
+- **`recommendation` is `None`** → say nothing about routing, just answer.
+- For local tier: check `decision["ollama_ready"]` first — if `false`,
+  mention that Ollama isn't ready before recommending local.
+- **Error / timeout** → skip, answer with current model. Do not retry.
 
 ## Tier Reference
 
