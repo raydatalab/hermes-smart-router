@@ -57,7 +57,7 @@ hermes skills install hermes-smart-router
 If the short form is unavailable, use the repo path:
 
 ```bash
-hermes skills install raydatalab/hermes-smart-router/hermes-smart-router
+hermes skills install raydatalab/hermes-smart-router
 ```
 
 Then run the one-time setup script to install Python dependencies into Hermes' environment and pull the embedding model (~30 seconds, once per machine):
