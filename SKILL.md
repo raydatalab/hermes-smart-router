@@ -1,7 +1,7 @@
 ---
 name: hermes-smart-router
-description: Smart model-tier routing for Hermes — save 70%+ on API costs by auto-switching to cheaper models for simple queries. 100% local Ollama classification, zero API calls for routing.
-version: 0.2.0
+description: Use when switching models, saving costs, or routing queries. Automatically picks the cheapest model that can handle the job — "translate hello" routes to $0/M local, "design a database" routes to $3/M pro. 100% local classification, zero API calls for routing.
+version: 0.2.2
 author: raydatalab
 license: MIT
 platforms: [linux, macos, wsl]
@@ -39,31 +39,35 @@ metadata:
 
 # Smart Router
 
-Intelligent model tier routing for Hermes Agent — recommends the right model tier based on query complexity.
+## Overview
 
-## Why Use Me
+```
+"Translate hello to German"       → local   $0/M tok
+"Explain how DNS works"           → flash   $0.15/M tok  (GPT-4o-mini)
+"Design a distributed database"   → pro     $3/M tok  (Claude Sonnet)
+```
 
-Every query you send to the wrong model tier wastes tokens (pro for a greeting)
-or produces weak output (local for architecture). Smart Router catches these
-mismatches automatically:
+Smart Router classifies every query locally (Ollama embeddings + semantic-router)
+and picks the cheapest tier that can handle it. Simple queries route to free local
+models. Complex reasoning routes to frontier models. You pay for what you need —
+not what your config happens to be set to.
 
-- **Save money** — downgrade from pro/flash to local on simple queries
-- **Get quality** — upgrade from local/flash to pro on complex reasoning
-- **100% local, free, private** — all classification runs on your machine via
-  Ollama embeddings. Zero API calls for routing. Zero setup after install.
+Classification runs entirely on your machine. Zero API calls for routing decisions.
+Zero keys needed. ~3s on first call, <1ms after.
 
-The router is a bonus — when called, it saves tokens and improves quality.
-When skipped, you never notice. There is no penalty for not using it.
+## When to Use
 
-## CRITICAL — Read Before Responding
+Load this skill when:
+- The user is toggling between models manually (wasting tokens on simple queries)
+- The user asks about cost saving, model switching, or routing
+- The user mentions `/model`, `/tier`, or switches models mid-session
+- The agent is about to answer a complex question and should verify the current tier
 
-**You MUST call `router.resolve()` before answering any non-trivial query.**
-The user installed this skill to save money on API costs. Every response you
-send from the wrong tier is wasted tokens. This is not optional — it's the
-entire reason this skill exists.
+Do NOT load for: greetings, one-liners, translations, queries under 20 characters.
 
-The call is cheap: first call takes ~3s, subsequent calls return in microseconds.
-Short queries and greetings skip the encoder entirely (fast-path, 0 cost).
+## CRITICAL — Agent Instructions
+
+**Call `router.resolve()` before answering any non-trivial query.**
 
 ```python
 from smart_router.router import get_router
@@ -76,84 +80,42 @@ decision = router.resolve(user_message, current_tier=ACTIVE_TIER)
 ```
 
 **If `decision["recommendation"]` is not None**, paste it at the top of your
-response — it's ready to use, no formatting needed:
-
-```
-{decision["recommendation"]}
-
-[your actual response here]
-```
+response — it's ready to use, no formatting needed.
 
 **If `decision["recommendation"]` is None**, just answer normally.
 **If the call errors or times out**, skip it and answer — never retry.
 
-**ACTIVE_TIER** is your current tier (local/flash/pro). Check with `/tier`
-or ask the user if you don't know.
+`ACTIVE_TIER` is your current tier (local/flash/pro). Check with `/tier` or ask.
 
 ### When to Skip
 
-Only skip routing for: greetings ("hello", "thanks"), translations,
-one-liner facts, queries under 20 characters. Everything else — route.
+Skip routing for: greetings ("hello", "thanks"), translations, one-liner facts,
+queries under 20 characters. Everything else — route.
 
-### When to Route (Two Rules)
+### When to Route
 
-**Rule 1:** Route before any response that needs 3+ tool calls, complex
-reasoning, architecture, multi-step code, debugging, or when you're unsure
-about the current tier.
-
-**Rule 2:** For everything else, route anyway if it takes more than a sentence
-to answer. The cost of routing (~3s on first call, <1ms after) is always
-lower than the cost of answering from the wrong tier.
-
-If in doubt, route.
-
-## How to Act on the Result
-
-You **cannot execute `/model` yourself** — it's a user-side slash command.
-
-- **`recommendation` is a string** → paste it verbatim at the top of your reply.
-  The string already includes the emoji, the `/model` command, and the reason.
-- **`recommendation` is `None`** → say nothing about routing, just answer.
-- For local tier: check `decision["ollama_ready"]` first — if `false`,
-  mention that Ollama isn't ready before recommending local.
-- **Error / timeout** → skip, answer with current model. Do not retry.
+- **Complex:** 3+ tool calls, reasoning, architecture, multi-step code, debugging → route
+- **Unsure:** If it takes more than a sentence to answer → route
+- **Default:** If in doubt, route. Routing cost (~3s first call, <1ms after) is always
+  less than answering from the wrong tier.
 
 ## Tier Reference
 
-| Tier | Typical Model | Use When |
-|------|--------------|----------|
-| `local` | Your Ollama model | Simple Q&A, translations, offline, private |
-| `flash` | Affordable API (e.g. Gemini Flash) | General knowledge, casual coding (default) |
-| `pro` | Frontier API (e.g. Claude Sonnet) | Complex reasoning, architecture, multi-step code |
+| Tier | Model | Use When |
+|------|-------|----------|
+| `local` | Ollama (llama3, qwen, etc.) | Simple Q&A, translations, offline |
+| `flash` | GPT-4o-mini, Gemini Flash, Claude Haiku | General knowledge, casual coding |
+| `pro` | Claude Sonnet, GPT-4o, Gemini Pro | Complex reasoning, architecture |
 
-### How It Works
-
-1. User sends a query
-2. Smart Router classifies it using local Ollama embeddings (no API calls, no API keys)
-3. Routes to the appropriate tier — auto-starts Ollama for local, manages idle timeout
-4. Agent responds using the selected model
-
-### Ollama Lifecycle
-
-| Action | Method | Behavior |
-|--------|--------|----------|
-| Start | `ollama_manager.ensure_running()` | Starts `ollama serve`, waits for port, pulls model if missing |
-| Check | `ollama_manager.is_running` | Checks via `ollama ps` → systemd → pgrep |
-| Idle | `ollama_manager.idle_seconds` | Seconds since last local-tier use |
-| Kill | `ollama_manager.ensure_killed()` | SIGTERM (SIGKILL if forced) — skips systemd-managed |
+[Pricing](https://openai.com/api/pricing/)
 
 ## Prerequisites
 
 - Hermes Agent v0.17+
-- Ollama installed (the skill auto-detects models from `ollama list`; embedding model is pulled on first use)
-- Python packages (install once, see Testing section below):
-  - `semantic-router[ollama]`
-  - `smart_router` (from this repo)
-- For flash/pro tiers: configure providers via `hermes model`
+- Ollama installed
+- `semantic-router[ollama]` and `smart_router`
 
 ## Configuration
-
-Configure via `hermes config set` for each tier or add this block under `smart_router:` in config.yaml:
 
 ```yaml
 smart_router:
@@ -166,8 +128,8 @@ smart_router:
       model: llama3.2:3b
       base_url: http://localhost:11434/v1
     flash:
-      provider: openrouter
-      model: google/gemini-flash-1.5
+      provider: openai
+      model: gpt-4o-mini
     pro:
       provider: anthropic
       model: claude-sonnet-4
@@ -180,29 +142,28 @@ smart_router:
 
 | Command | Description |
 |---------|-------------|
-| `/route <query>` | Show which tier would be selected (dry run) |
-| `/route-stats` | Show session routing statistics |
-| `/ollama start` | Manually start Ollama |
-| `/ollama stop` | Manually stop Ollama |
-| `/ollama status` | Check Ollama process status |
-| `/tier` | Show current active tier and model |
+| `/route <query>` | Show tier selection (dry run) |
+| `/route-stats` | Session routing statistics |
+| `/ollama start / stop / status` | Ollama lifecycle |
+| `/tier` | Show current tier and model |
+
+## Common Pitfalls
+
+1. **Agent forgets to call `router.resolve()`.** The most common failure mode.
+   If the agent answers without routing, manually trigger with `/route <query>`.
+2. **Ollama not running.** If `decision["ollama_ready"]` is false, start Ollama
+   first (`/ollama start`) or skip routing for this query.
+3. **Slow first call.** First `router.resolve()` pulls `nomic-embed-text` (~274MB).
+   Subsequent calls are instant. Warm up with `python3 -m smart_router route "test"`
+   before heavy sessions.
+4. **Fast-path false negatives.** Queries under 20 chars skip embedding. If a short
+   query needs pro-level reasoning, the router won't catch it — use `/model` manually.
 
 ## Testing
 
 ```bash
-# Install dependencies (one-time setup)
 bash scripts/install.sh
-
-# Test routing
-~/.hermes/hermes-agent/venv/bin/python3 -m smart_router route "What is the capital of France?"
-~/.hermes/hermes-agent/venv/bin/python3 -m smart_router chat
-~/.hermes/hermes-agent/venv/bin/python3 -m pytest tests/
+python3 -m smart_router route "What is the capital of France?"
+python3 -m smart_router chat
+python3 -m pytest tests/
 ```
-
-## Notes
-
-- First use pulls `nomic-embed-text` via Ollama (~274MB, cached).
-- All classification is local — zero API calls for routing.
-- Skill auto-detects your Ollama models from `ollama list`.
-- Model switches are session-scoped — your config.yaml is not modified.
-- Fast-path: queries under 20 characters skip embedding and return the default tier instantly.

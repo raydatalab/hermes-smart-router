@@ -3,160 +3,75 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/Hermes-v0.17+-purple.svg" alt="Hermes">
+  <img src="https://img.shields.io/badge/version-0.2.2-green.svg" alt="Version">
 </p>
 
-Intelligent model tier routing for Hermes Agent — helps the agent pick the right model for each query.
-
-> **Note:** Hermes does not support in-session model switching via skills. The router classifies queries and recommends a tier; the user must run the suggested `/model` command manually.
-
-## The Problem
-
-A user may have access to multiple model tiers: a local model (fast, free, offline), a low-cost cloud model, and a more capable frontier model. Without routing, every query goes to the same target, incurring unnecessary cost on simple tasks and under-serving complex ones.
-
-## The Solution
-
-A Hermes skill that classifies queries on demand and recommends the appropriate model tier. Classification runs entirely on the local machine:
-
 ```
-"Translate hello to German"           → local (Ollama, free)
-"Explain how DNS works"               → flash (low-cost API)
-"Design a multi-region database"      → pro (highest capability)
+"Translate hello to German"       → local   $0/M tok
+"Explain how DNS works"           → flash   $0.15/M tok  (GPT-4o-mini)
+"Design a distributed database"   → pro     $3/M tok  (Claude Sonnet)
 ```
 
-Routing uses [semantic-router](https://github.com/aurelio-labs/semantic-router) with local Ollama embeddings — zero API calls, zero cost. After the one-time embedding model pull, classification runs entirely offline.
+Smart Router knows which model to use — every query, automatically.
+Simple questions don't pay pro prices. Hard ones get the power they need.
 
-## Tiers
+---
 
-| Tier | Purpose | Provider examples |
-|------|---------|-------------------|
-| **local** | Free, offline, private — simple lookups, translations, formatting | Ollama (llama3.2, qwen3, mistral), any local model |
-| **flash** | Fast, low-cost — everyday coding, explanations, general Q&A | DeepSeek Flash, Gemini Flash, GPT-4o-mini, Claude Haiku |
-| **pro** | Highest capability — complex architecture, debugging, multi-step reasoning | DeepSeek Pro, Gemini Pro, GPT-4o, Claude Sonnet |
+## How It Works
 
-One API token, different models for different complexity. There is no requirement for multiple providers — a single provider such as OpenRouter or DeepSeek provides both flash and pro tiers.
+Smart Router classifies every query locally (Ollama + semantic-router) and tells
+the Hermes agent which tier to use. No API calls for routing. No setup after install.
 
-## Features
+```
+You: "What's the capital of France?"
+Agent: [Smart Router: local]
+Agent: Paris.
 
-- 3-tier routing: local / flash / pro, auto-selected per query
-- 100% local classification via Ollama embeddings — no cloud dependencies
-- Ollama lifecycle: auto-start when needed, auto-kill when idle
-- No GPU required — runs on CPU
-- Queries never leave the local machine during routing decisions
-
-## Installation
-
-**Prerequisites:** Hermes Agent v0.17+, Python 3.10+, Ollama installed.
-
-### Via Hermes (recommended)
-
-```bash
-hermes skills install hermes-smart-router
+You: "Design a rate limiter for a distributed system."
+Agent: [Smart Router: pro]
+Agent: (production-ready answer using Claude Sonnet)
 ```
 
-If the short form is unavailable, use the repo path:
+Same prompt. Three possible models. You pay for the model you need — not the one
+your config happens to be on.
+
+---
+
+## Why Smart Router
+
+**Save money.** Every query routed from pro → flash saves ~92%. Flash → local saves 100%.
+
+**Get quality.** Complex reasoning stays on pro where it belongs. No more "local model
+hallucinated a database architecture."
+
+**100% local routing.** Classification runs on Ollama embeddings on your machine.
+Zero API calls for routing decisions. Zero API keys needed for classification.
+
+**No penalty.** When the router isn't triggered, you never notice. When it is,
+it saves you tokens and improves output quality. There's no downside.
+
+---
+
+## Install
 
 ```bash
 hermes skills install raydatalab/hermes-smart-router
 ```
 
-Then run the one-time setup script to install Python dependencies into Hermes' environment and pull the embedding model (~30 seconds, once per machine):
+Requires: Hermes Agent v0.17+, Ollama installed, `semantic-router[ollama]`.
 
-```bash
-git clone https://github.com/raydatalab/hermes-smart-router.git
-cd hermes-smart-router && bash scripts/install.sh
-```
+First run pulls `nomic-embed-text` via Ollama (~274MB).
 
-The script auto-detects Hermes' Python venv and installs there — the skill can import `smart_router` immediately after.
+## Slash Commands
 
-### Manual
+| Command | Description |
+|---------|-------------|
+| `/route <query>` | Show tier selection for a query (dry run) |
+| `/route-stats` | Session routing stats |
+| `/ollama start / stop / status` | Ollama lifecycle |
 
-```bash
-git clone https://github.com/raydatalab/hermes-smart-router.git
-cd hermes-smart-router && bash scripts/install.sh
-hermes skills install SKILL.md
-```
+## Related
 
-On first use, Smart Router detects available Ollama models from `ollama list` and adapts. If no cloud providers are configured, the skill operates in local-only mode — no errors, no missing-config warnings.
-
-## Configuration
-
-Configure via `hermes config set` for each tier, or add a `smart_router:` block in config.yaml with the following structure:
-
-```yaml
-smart_router:
-  enabled: true
-  default_tier: flash
-  encoder_model: nomic-embed-text
-  tiers:
-    local:
-      provider: custom
-      model: llama3.2:3b
-      base_url: http://localhost:11434/v1
-    flash:
-      provider: openrouter
-      model: google/gemini-flash-1.5
-    pro:
-      provider: openrouter
-      model: anthropic/claude-sonnet-4
-  ollama:
-    auto_start: true
-    idle_timeout: 300
-```
-
-Providers are configured via `hermes model` — no manual `.env` editing is required.
-
-## Provider Support
-
-| Tier | Ollama | OpenRouter | DeepSeek | Anthropic | OpenAI | Custom endpoint |
-|------|--------|------------|----------|-----------|--------|-----------------|
-| local | auto-detect | — | — | — | — | configurable |
-| flash | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| pro | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-
-The local tier auto-detects whichever Ollama model is available. Flash and pro tiers work with any provider Hermes supports — the `provider` and `model` fields in the tier config determine the target.
-
-## Usage
-
-Once loaded, the skill provides a classification tool the agent invokes when the current model feels wrong for the query — either too weak or too expensive. The router fires `needs_switch` in both directions, and the agent recommends a `/model` command the user can execute:
-
-```
-Agent (flash): receives "Design a fault-tolerant payment system"
-→ classifies → needs_switch=true → recommends pro upgrade
-💡 Switch to pro: /model deepseek deepseek-v4-pro
-Agent: [detailed architecture answer]
-
-Agent (pro): receives "Translate hello to German"
-→ classifies → needs_switch=true → recommends flash downgrade
-💡 Downgrade to flash: /model deepseek deepseek-v4-flash
-Agent: Hallo
-```
-
-### Python API
-
-```python
-from smart_router.router import get_router
-
-router = get_router()
-decision = router.resolve("Explain how DNS works", current_tier="flash")
-# → {"tier": "flash", "model": {...}, "ollama_ready": null, "needs_switch": false}
-```
-
-### CLI
-
-```bash
-python -m smart_router route "What is the capital of France?"
-python -m smart_router chat          # interactive mode with stats
-python -m smart_router tiers         # list configured tiers
-python -m smart_router ollama status # check Ollama
-```
-
-If installed via the script into Hermes' venv, use that Python directly:
-
-```bash
-~/.hermes/hermes-agent/venv/bin/python3 -m smart_router route "What is the capital of France?"
-```
-
-## License
-
-MIT
+- [TokenSave](https://github.com/raydatalab/tokensave) — token waste analyzer
+- [hermes-cost-optimization](https://clawhub.ai/raydatalab/skills/hermes-cost-optimization) — headroom compression + light model fallback
+- [API pricing](https://openai.com/api/pricing/)
