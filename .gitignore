@@ -36,3 +36,4 @@ DESIGN-*.md
 # Skill artifacts
 *.swp
 *.swo
+.mailmap
